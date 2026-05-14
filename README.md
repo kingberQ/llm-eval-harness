@@ -1,77 +1,80 @@
 # LLM Eval Harness
 
-Small dependency-free Python harness for testing LLM workflows before prompt or
-model changes reach production.
+A lightweight Python harness for evaluating LLM prompts, outputs, and safety regressions without adding a heavy framework.
 
-It evaluates model outputs against JSONL test cases and produces deterministic
-scores for:
+The goal is simple: make AI behavior measurable before release. Instead of relying on manual spot checks, keep test cases in files, run them in CI, compare outputs, and catch prompt/model regressions early.
 
-- required phrases or facts
-- forbidden phrases or unsafe claims
-- JSON parseability
-- required JSON fields
-- latency and cost metadata when available
+## Problem
 
-This is intentionally simple enough to run in CI and easy to adapt to product
-workflows such as support bots, code review agents, extraction jobs, and internal
-automation.
+LLM features often fail quietly. A prompt change, model upgrade, retrieval change, or tool schema update can make a previously good workflow worse without breaking a normal unit test.
+
+This repo demonstrates a small evaluation loop that is easy to inspect, easy to extend, and suitable for backend teams that need release confidence before shipping AI behavior.
+
+## What It Demonstrates
+
+- File-based eval cases for repeatable testing
+- Deterministic checks for required and forbidden output patterns
+- Lightweight scoring and pass/fail summaries
+- Safety regression checks for prompt output
+- CI-friendly command-line execution
+- No vendor lock-in in the core harness
+- Small enough to adapt into existing Java, Python, or Node backend workflows
 
 ## Quick Start
 
 ```bash
-python3 src/eval_harness.py \
-  --cases examples/cases.jsonl \
-  --outputs examples/outputs.jsonl
-
-python3 src/eval_harness.py \
-  --cases examples/cases.jsonl \
-  --outputs examples/outputs.jsonl \
-  --json
-
-python3 test/eval_harness_test.py
+python -m pytest
+python scripts/run_eval.py examples/basic_eval.json
 ```
 
-## Case Format
-
-Each JSONL line is one eval case:
+Example eval case:
 
 ```json
 {
-  "id": "support-refund-policy",
-  "prompt_version": "support-v3",
-  "prompt": "Customer asks for a refund after 40 days.",
-  "required_contains": ["30-day refund window"],
-  "forbidden_contains": ["guaranteed refund"],
-  "json_required_fields": []
+  "name": "support_answer_should_be_concise",
+  "input": "Explain how to reset a password",
+  "checks": {
+    "must_include": ["reset", "password"],
+    "must_not_include": ["admin token", "private key"]
+  }
 }
 ```
 
-Model outputs are also JSONL:
+## Evaluation Flow
 
-```json
-{
-  "id": "support-refund-policy",
-  "output": "Our policy has a 30-day refund window...",
-  "latency_ms": 812,
-  "cost_usd": 0.0012
-}
+```text
+eval cases
+   |
+   v
+prompt/model output
+   |
+   v
+checks and scoring
+   |
+   v
+pass/fail summary for local runs or CI
 ```
 
-## Optional Live Model Runner
+## Where This Fits
 
-The harness focuses on evaluation, but it can also call an OpenAI-compatible
-chat completions endpoint when `--openai` is set:
+This pattern is useful when a team needs to ship AI features with fewer surprises:
 
-```bash
-OPENAI_API_KEY=... \
-OPENAI_MODEL=gpt-4.1-mini \
-python3 src/eval_harness.py --cases examples/cases.jsonl --openai
-```
+- RAG assistants that need answer quality checks
+- LLM agents that need tool-call output regression tests
+- Prompt pipelines that change frequently
+- Model migration work where behavior needs comparison
+- CI gates for internal AI tools
+- Safety checks for outputs that should avoid secrets, unsafe instructions, or policy violations
 
-Set `OPENAI_BASE_URL` for compatible providers.
+## Extension Ideas
 
-## Why This Exists
+- Add multiple model providers behind one adapter interface
+- Compare current outputs against golden baselines
+- Store eval history as JSON, SQLite, or CI artifacts
+- Add semantic similarity checks for less brittle scoring
+- Add per-domain validators for code review, support, legal, finance, or ops workflows
+- Expose eval runs through a small API or dashboard
 
-AI features regress silently. A prompt that works today can fail after a model
-upgrade, a wording tweak, or a new tool schema. This harness makes those changes
-measurable before they hit users.
+## Related Work
+
+This repo is part of my public AI automation portfolio. More context: [GitHub profile](https://github.com/kingberQ) and [LinkedIn](https://www.linkedin.com/in/kingberq/).
